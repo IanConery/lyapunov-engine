@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "torch", "ninja"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lyapunov-engine"
+version = "0.1.0"
+description = "Custom CUDA LLM Inference Engine with Dynamic Trajectory & Uncertainty Analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "numpy",
+    "transformers",
+    "accelerate",
+    "safetensors",
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "gguf"
+]
+
+[project.scripts]
+lyapunov = "lyapunov_engine.entrypoints.cli:main"
