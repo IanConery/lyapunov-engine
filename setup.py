@@ -1,9 +1,14 @@
 import os
-import sys
+
 from setuptools import find_packages, setup
 
 # Check if CUDA extension build is requested and supported
-build_cuda_ext = os.environ.get("BUILD_CUDA_EXT", "1") not in ("0", "false", "False", "no")
+build_cuda_ext = os.environ.get("BUILD_CUDA_EXT", "1") not in (
+    "0",
+    "false",
+    "False",
+    "no",
+)
 no_cuda = os.environ.get("NO_CUDA", "0") in ("1", "true", "True", "yes")
 
 ext_modules = []
@@ -11,8 +16,11 @@ cmdclass = {}
 
 if build_cuda_ext and not no_cuda:
     try:
-        import torch
-        from torch.utils.cpp_extension import BuildExtension, CUDAExtension, CUDA_HOME
+        from torch.utils.cpp_extension import (
+            CUDA_HOME,
+            BuildExtension,
+            CUDAExtension,
+        )
 
         if CUDA_HOME is not None or os.environ.get("FORCE_CUDA", "0") == "1":
             # Allow minor CUDA toolkit version mismatch between host nvcc and prebuilt PyTorch
@@ -65,9 +73,11 @@ if build_cuda_ext and not no_cuda:
             ]
             cmdclass = {"build_ext": BuildExtension}
         else:
-            print("CUDA_HOME not found. Building pure Python package without CUDA extension.")
-    except Exception as exc:
-        print(f"CUDA extension setup failed: {exc}. Falling back to pure Python package.")
+            print(
+                "CUDA_HOME not found. Building pure Python package without CUDA extension."
+            )
+    except (ImportError, RuntimeError, OSError) as exc:
+        print(f"CUDA extension setup skipped: {exc}. Building pure Python package.")
         ext_modules = []
         cmdclass = {}
 
