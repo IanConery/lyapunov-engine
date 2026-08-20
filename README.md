@@ -68,8 +68,8 @@ graph TD
 
 ### Supported Architectures (Families)
 * **LLaMA Architecture (Mistral, Mixtral, Yi, SmolLM, Vicuna, OpenLLaMA)**: Autoregressive transformer decoders utilizing RMSNorm pre-normalization, SwiGLU feedforward projections, and Rotary Position Embeddings (RoPE) with Multi-Head (MHA) and Grouped-Query Attention (GQA).
-* **Qwen Architecture (Qwen, Qwen2, Qwen2.5)**: Dense autoregressive models with tied/untied embedding vocabularies, grouped query layouts, and fused projection layers.
-* **DeepSeek Architecture (DeepSeek-V2, DeepSeek-V3, MoE Attention)**: Multi-Head and Multi-Query Attention pipelines with interleaved SwiGLU activation paths and normalization blocks.
+* **Qwen Architecture (Qwen)**: Dense autoregressive models with tied/untied embedding vocabularies, grouped query layouts, and fused projection layers.
+* **DeepSeek Architecture (DeepSeek, MoE Attention)**: Multi-Head and Multi-Query Attention pipelines with interleaved SwiGLU activation paths and normalization blocks.
 
 ### Supported File Formats & Checkpoint Types
 * **Hugging Face Hub / Local Safetensors (`.safetensors`, `.bin`)**: Direct download and ingestion with fused gate-up projection layers.
@@ -174,7 +174,7 @@ conda run -n lyapunov-engine python benchmarks/bench_lyapunov.py --context-lens 
 
 ## 7. Server & CLI Execution Examples
 
-### Start OpenAI-Compatible API Server (Hugging Face Model)
+### Start OpenAI-Compatible API Server
 ```bash
 conda run -n lyapunov-engine lyapunov serve \
     --model Qwen/Qwen2.5-1.5B-Instruct \
