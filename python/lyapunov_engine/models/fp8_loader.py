@@ -1,12 +1,10 @@
-from typing import Dict, Optional, Tuple
 import torch
-import torch.nn as nn
+from torch import nn
+
 from lyapunov_engine.models.quant import QuantizedLinear, QuantType
 
 
-def quantize_to_fp8_e4m3(
-    weight: torch.Tensor
-) -> Tuple[torch.Tensor, float]:
+def quantize_to_fp8_e4m3(weight: torch.Tensor) -> tuple[torch.Tensor, float]:
     """Quantize an FP16/FP32 weight tensor to FP8 (Float8_e4m3fn) with scaling factor."""
     max_val = weight.abs().max().item()
     if max_val == 0.0:
@@ -30,8 +28,7 @@ def quantize_to_fp8_e4m3(
 
 
 def convert_linear_to_fp8(
-    linear: nn.Linear,
-    device: Optional[torch.device] = None
+    linear: nn.Linear, device: torch.device | None = None
 ) -> QuantizedLinear:
     """Convert a standard nn.Linear layer into an FP8 QuantizedLinear layer."""
     dev = device or linear.weight.device
@@ -41,7 +38,7 @@ def convert_linear_to_fp8(
         qtype=QuantType.FP8_E4M3,
         bias=linear.bias is not None,
         device=dev,
-        dtype=linear.weight.dtype
+        dtype=linear.weight.dtype,
     )
 
     qweight, scale_w = quantize_to_fp8_e4m3(linear.weight.data)

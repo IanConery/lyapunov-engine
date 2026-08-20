@@ -1,25 +1,25 @@
 import math
-from typing import List, Tuple, Optional
+
 import torch
-import torch.nn as nn
+from torch import nn
 
 
 def compute_lyapunov_divergence(
     model: nn.Module,
-    prompt_tokens: List[int],
+    prompt_tokens: list[int],
     num_steps: int = 16,
     perturbation_scale: float = 1e-3,
-    device: str = "cpu"
-) -> Tuple[float, List[float]]:
+    device: str = "cpu",
+) -> tuple[float, list[float]]:
     """Compute empirical Lyapunov divergence rate under micro-perturbations.
-    
+
     Args:
         model: Transformer model instance.
         prompt_tokens: Base prompt token sequence.
         num_steps: Number of forward/decode steps to track.
         perturbation_scale: Magnitude of embedding noise perturbation.
         device: Execution device.
-        
+
     Returns:
         lambda_exp: Empirical Lyapunov exponent.
         divergence_history: List of Euclidean divergence distances D(t) at each step.
@@ -33,25 +33,27 @@ def compute_lyapunov_divergence(
 
     with torch.no_grad():
         # Get baseline embedding
-        base_embed = model.embed_tokens(tokens).float() # [1, seqlen, hidden_size]
+        base_embed = model.embed_tokens(tokens).float()  # [1, seqlen, hidden_size]
 
         # Create perturbed embedding
         noise = torch.randn_like(base_embed) * perturbation_scale
-        perturbed_embed = base_embed + noise
+        base_embed + noise
 
         # Measure baseline vs perturbed hidden states
         base_logits = model(tokens)[:, -1, :].float()
-        
+
         # Perturbed forward pass through model (simulated via perturbed inputs)
         # Using forward pass over perturbed embeddings
         perturb_tokens = tokens.clone()
         if perturb_tokens.size(1) > 1:
             # Shift a non-critical token ID to simulate discrete lattice perturbation
-            perturb_tokens[0, -1] = (perturb_tokens[0, -1] + 1) % getattr(model.config, "vocab_size", 128256)
+            perturb_tokens[0, -1] = (perturb_tokens[0, -1] + 1) % getattr(
+                model.config, "vocab_size", 128256
+            )
 
         perturb_logits = model(perturb_tokens)[:, -1, :].float()
 
-        d0 = torch.norm(noise).item() + 1e-6
+        torch.norm(noise).item() + 1e-6
         d_initial = torch.norm(base_logits - perturb_logits).item()
 
         divergence_history = [d_initial]

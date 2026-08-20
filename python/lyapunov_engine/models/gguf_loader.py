@@ -1,11 +1,10 @@
 import os
-from typing import Dict, Any, Optional
-import torch
-import numpy as np
+
 import gguf
+import numpy as np
+import torch
 
 from lyapunov_engine.models.llama import LlamaConfig, LlamaForCausalLM
-from lyapunov_engine.models.quant import QuantizedLinear, QuantType
 
 
 def load_llama_config_from_gguf(reader: gguf.GGUFReader) -> LlamaConfig:
@@ -41,14 +40,12 @@ def load_llama_config_from_gguf(reader: gguf.GGUFReader) -> LlamaConfig:
         head_dim=int(head_dim),
         max_position_embeddings=int(max_position_embeddings),
         rms_norm_eps=float(rms_norm_eps),
-        rope_theta=float(rope_theta)
+        rope_theta=float(rope_theta),
     )
 
 
 def load_gguf_model(
-    gguf_path: str,
-    device: str = "cpu",
-    dtype: torch.dtype = torch.float16
+    gguf_path: str, device: str = "cpu", dtype: torch.dtype = torch.float16
 ) -> LlamaForCausalLM:
     """Load quantized model from GGUF binary file directly into LlamaForCausalLM."""
     if not os.path.exists(gguf_path):
@@ -59,7 +56,7 @@ def load_gguf_model(
     model = LlamaForCausalLM(config).to(device=device, dtype=dtype)
 
     # Tensor mapping dictionary
-    tensor_map: Dict[str, gguf.ReaderTensor] = {t.name: t for t in reader.tensors}
+    tensor_map: dict[str, gguf.ReaderTensor] = {t.name: t for t in reader.tensors}
 
     # 1. Load Token Embeddings & Output Norm
     if "token_embd.weight" in tensor_map:
@@ -88,12 +85,16 @@ def load_gguf_model(
         attn_norm_name = f"{prefix}attn_norm.weight"
         if attn_norm_name in tensor_map:
             t = tensor_map[attn_norm_name]
-            layer.input_layernorm_weight.data.copy_(torch.from_numpy(t.data.copy()).to(dtype=dtype, device=device))
+            layer.input_layernorm_weight.data.copy_(
+                torch.from_numpy(t.data.copy()).to(dtype=dtype, device=device)
+            )
 
         ffn_norm_name = f"{prefix}ffn_norm.weight"
         if ffn_norm_name in tensor_map:
             t = tensor_map[ffn_norm_name]
-            layer.post_attention_layernorm_weight.data.copy_(torch.from_numpy(t.data.copy()).to(dtype=dtype, device=device))
+            layer.post_attention_layernorm_weight.data.copy_(
+                torch.from_numpy(t.data.copy()).to(dtype=dtype, device=device)
+            )
 
         # Linear projections
         for proj_name, layer_proj in [
@@ -101,7 +102,7 @@ def load_gguf_model(
             (f"{prefix}attn_k.weight", layer.self_attn.k_proj),
             (f"{prefix}attn_v.weight", layer.self_attn.v_proj),
             (f"{prefix}attn_output.weight", layer.self_attn.o_proj),
-            (f"{prefix}ffn_down.weight", layer.mlp.down_proj)
+            (f"{prefix}ffn_down.weight", layer.mlp.down_proj),
         ]:
             if proj_name in tensor_map:
                 t = tensor_map[proj_name]

@@ -1,11 +1,10 @@
-import pytest
 import torch
-import torch.nn as nn
 from lyapunov_engine.distributed.tensor_parallel import (
     ColumnParallelLinear,
+    ParallelEmbedding,
     RowParallelLinear,
-    ParallelEmbedding
 )
+from torch import nn
 
 
 def test_column_parallel_linear_parity():
@@ -18,16 +17,30 @@ def test_column_parallel_linear_parity():
     ref_linear = nn.Linear(in_features, out_features, bias=False, dtype=torch.float32)
 
     # Shard 0 & Shard 1
-    shard_0 = ColumnParallelLinear(in_features, out_features, bias=False, rank=0, world_size=world_size, dtype=torch.float32)
-    shard_1 = ColumnParallelLinear(in_features, out_features, bias=False, rank=1, world_size=world_size, dtype=torch.float32)
+    shard_0 = ColumnParallelLinear(
+        in_features,
+        out_features,
+        bias=False,
+        rank=0,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
+    shard_1 = ColumnParallelLinear(
+        in_features,
+        out_features,
+        bias=False,
+        rank=1,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
 
     shard_0.load_unpartitioned_weight(ref_linear.weight.data)
     shard_1.load_unpartitioned_weight(ref_linear.weight.data)
 
     x = torch.randn((4, in_features), dtype=torch.float32)
 
-    out_0 = shard_0(x) # [4, 64]
-    out_1 = shard_1(x) # [4, 64]
+    out_0 = shard_0(x)  # [4, 64]
+    out_1 = shard_1(x)  # [4, 64]
 
     # Concatenate column shards
     combined_out = torch.cat([out_0, out_1], dim=-1)
@@ -44,15 +57,29 @@ def test_row_parallel_linear_parity():
 
     ref_linear = nn.Linear(in_features, out_features, bias=False, dtype=torch.float32)
 
-    shard_0 = RowParallelLinear(in_features, out_features, bias=False, rank=0, world_size=world_size, dtype=torch.float32)
-    shard_1 = RowParallelLinear(in_features, out_features, bias=False, rank=1, world_size=world_size, dtype=torch.float32)
+    shard_0 = RowParallelLinear(
+        in_features,
+        out_features,
+        bias=False,
+        rank=0,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
+    shard_1 = RowParallelLinear(
+        in_features,
+        out_features,
+        bias=False,
+        rank=1,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
 
     shard_0.load_unpartitioned_weight(ref_linear.weight.data)
     shard_1.load_unpartitioned_weight(ref_linear.weight.data)
 
     x = torch.randn((4, in_features), dtype=torch.float32)
-    x_0 = x[:, :in_features // world_size]
-    x_1 = x[:, in_features // world_size:]
+    x_0 = x[:, : in_features // world_size]
+    x_1 = x[:, in_features // world_size :]
 
     out_0 = shard_0(x_0)
     out_1 = shard_1(x_1)
@@ -70,8 +97,20 @@ def test_parallel_embedding():
     embedding_dim = 32
     world_size = 2
 
-    embed_0 = ParallelEmbedding(num_embeddings, embedding_dim, rank=0, world_size=world_size, dtype=torch.float32)
-    embed_1 = ParallelEmbedding(num_embeddings, embedding_dim, rank=1, world_size=world_size, dtype=torch.float32)
+    embed_0 = ParallelEmbedding(
+        num_embeddings,
+        embedding_dim,
+        rank=0,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
+    embed_1 = ParallelEmbedding(
+        num_embeddings,
+        embedding_dim,
+        rank=1,
+        world_size=world_size,
+        dtype=torch.float32,
+    )
 
     input_ids = torch.tensor([5, 60, 25, 80], dtype=torch.long)
 

@@ -2,6 +2,7 @@ import pytest
 
 try:
     from lyapunov_engine import _C
+
     HAS_CUDA_EXT = True
 except ImportError:
     HAS_CUDA_EXT = False
@@ -16,7 +17,7 @@ def test_block_manager_allocation():
     assert bm.get_num_used_blocks() == 0
 
     sp = _C.SamplingParams()
-    seq1 = _C.Sequence(1, [1] * 32, sp) # 32 tokens = 2 blocks
+    seq1 = _C.Sequence(1, [1] * 32, sp)  # 32 tokens = 2 blocks
 
     assert bm.can_allocate(seq1)
     bm.allocate(seq1)

@@ -1,5 +1,5 @@
 import time
-from typing import List, Optional, Union, Dict, Any
+
 from pydantic import BaseModel, Field
 
 
@@ -10,33 +10,35 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     model: str = "lyapunov-model"
-    messages: List[ChatMessage]
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    top_k: Optional[int] = -1
-    max_tokens: Optional[int] = 128
-    stream: Optional[bool] = False
-    stop: Optional[Union[str, List[str]]] = None
-    include_stability_diagnostics: Optional[bool] = False
+    messages: list[ChatMessage]
+    temperature: float | None = 0.7
+    top_p: float | None = 1.0
+    top_k: int | None = -1
+    max_tokens: int | None = 128
+    stream: bool | None = False
+    stop: str | list[str] | None = None
+    include_stability_diagnostics: bool | None = False
 
 
 class CompletionRequest(BaseModel):
     model: str = "lyapunov-model"
-    prompt: Union[str, List[int]]
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 1.0
-    top_k: Optional[int] = -1
-    max_tokens: Optional[int] = 128
-    stream: Optional[bool] = False
-    stop: Optional[Union[str, List[str]]] = None
-    include_stability_diagnostics: Optional[bool] = False
+    prompt: str | list[int]
+    temperature: float | None = 0.7
+    top_p: float | None = 1.0
+    top_k: int | None = -1
+    max_tokens: int | None = 128
+    stream: bool | None = False
+    stop: str | list[str] | None = None
+    include_stability_diagnostics: bool | None = False
 
 
 class StabilityDiagnostics(BaseModel):
     lyapunov_exponent: float = 0.0
     semantic_entropy: float = 0.0
     confidence_rating: str = "high"
-    diagnostics_status: str = "executed" # "executed" | "lightweight" | "disabled_context_limit"
+    diagnostics_status: str = (
+        "executed"  # "executed" | "lightweight" | "disabled_context_limit"
+    )
     cluster_count: int = 1
 
 
@@ -49,7 +51,7 @@ class UsageInfo(BaseModel):
 class ChatCompletionResponseChoice(BaseModel):
     index: int
     message: ChatMessage
-    finish_reason: Optional[str] = "stop"
+    finish_reason: str | None = "stop"
 
 
 class ChatCompletionResponse(BaseModel):
@@ -57,20 +59,20 @@ class ChatCompletionResponse(BaseModel):
     object: str = "chat.completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[ChatCompletionResponseChoice]
+    choices: list[ChatCompletionResponseChoice]
     usage: UsageInfo
-    stability_diagnostics: Optional[StabilityDiagnostics] = None
+    stability_diagnostics: StabilityDiagnostics | None = None
 
 
 class ChatCompletionChunkDelta(BaseModel):
-    role: Optional[str] = None
-    content: Optional[str] = None
+    role: str | None = None
+    content: str | None = None
 
 
 class ChatCompletionChunkChoice(BaseModel):
     index: int
     delta: ChatCompletionChunkDelta
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
 
 
 class ChatCompletionStreamResponse(BaseModel):
@@ -78,14 +80,14 @@ class ChatCompletionStreamResponse(BaseModel):
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[ChatCompletionChunkChoice]
-    stability_diagnostics: Optional[StabilityDiagnostics] = None
+    choices: list[ChatCompletionChunkChoice]
+    stability_diagnostics: StabilityDiagnostics | None = None
 
 
 class CompletionResponseChoice(BaseModel):
     index: int
     text: str
-    finish_reason: Optional[str] = "stop"
+    finish_reason: str | None = "stop"
 
 
 class CompletionResponse(BaseModel):
@@ -93,9 +95,9 @@ class CompletionResponse(BaseModel):
     object: str = "text_completion"
     created: int = Field(default_factory=lambda: int(time.time()))
     model: str
-    choices: List[CompletionResponseChoice]
+    choices: list[CompletionResponseChoice]
     usage: UsageInfo
-    stability_diagnostics: Optional[StabilityDiagnostics] = None
+    stability_diagnostics: StabilityDiagnostics | None = None
 
 
 class ModelCard(BaseModel):
@@ -107,4 +109,4 @@ class ModelCard(BaseModel):
 
 class ModelList(BaseModel):
     object: str = "list"
-    data: List[ModelCard]
+    data: list[ModelCard]

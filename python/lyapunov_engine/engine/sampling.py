@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+
 import torch
 
 
@@ -13,15 +13,14 @@ class SamplingParams:
 
 
 def sample_next_tokens(
-    logits: torch.Tensor,
-    sampling_params_list: List[SamplingParams]
-) -> List[int]:
+    logits: torch.Tensor, sampling_params_list: list[SamplingParams]
+) -> list[int]:
     """Sample next token IDs from unnormalized logits.
-    
+
     Args:
         logits: Tensor of shape [batch_size, vocab_size]
         sampling_params_list: List of SamplingParams per sequence
-        
+
     Returns:
         List of sampled token IDs
     """
@@ -45,14 +44,22 @@ def sample_next_tokens(
         if sp.top_k > 0 and sp.top_k < b_logits.shape[-1]:
             topk_vals, _ = torch.topk(b_logits, sp.top_k)
             min_val = topk_vals[-1]
-            b_logits = torch.where(b_logits < min_val, torch.tensor(-float("Inf"), device=b_logits.device), b_logits)
+            b_logits = torch.where(
+                b_logits < min_val,
+                torch.tensor(-float("Inf"), device=b_logits.device),
+                b_logits,
+            )
 
         # Top-P (Nucleus) filtering
         if sp.top_p < 1.0:
             sorted_logits, sorted_indices = torch.sort(b_logits, descending=True)
-            cumulative_probs = torch.cumsum(torch.softmax(sorted_logits, dim=-1), dim=-1)
+            cumulative_probs = torch.cumsum(
+                torch.softmax(sorted_logits, dim=-1), dim=-1
+            )
             sorted_indices_to_remove = cumulative_probs > sp.top_p
-            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[..., :-1].clone()
+            sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
+                ..., :-1
+            ].clone()
             sorted_indices_to_remove[..., 0] = 0
 
             indices_to_remove = sorted_indices[sorted_indices_to_remove]

@@ -63,7 +63,9 @@ def test_swiglu_numerical_parity(intermediate_dim, num_tokens, dtype):
     device = torch.device("cuda:0")
     torch.manual_seed(42)
 
-    gate_up = torch.randn((num_tokens, 2 * intermediate_dim), dtype=dtype, device=device)
+    gate_up = torch.randn(
+        (num_tokens, 2 * intermediate_dim), dtype=dtype, device=device
+    )
 
     # Reference
     gate, up = gate_up.chunk(2, dim=-1)

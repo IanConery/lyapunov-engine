@@ -1,6 +1,5 @@
 import pytest
 import torch
-import torch.nn as nn
 from lyapunov_engine.engine.cuda_graph_runner import CUDAGraphRunner
 from lyapunov_engine.models.llama import LlamaConfig, LlamaForCausalLM
 
@@ -17,15 +16,12 @@ def test_cuda_graph_runner_bucketing():
         num_hidden_layers=2,
         num_attention_heads=4,
         num_key_value_heads=2,
-        head_dim=64
+        head_dim=64,
     )
     model = LlamaForCausalLM(config).to(device=device, dtype=torch.float32)
 
     runner = CUDAGraphRunner(
-        model=model,
-        batch_buckets=[1, 2, 4, 8],
-        device=str(device),
-        dtype=torch.float32
+        model=model, batch_buckets=[1, 2, 4, 8], device=str(device), dtype=torch.float32
     )
 
     # Capture graphs up to bucket 4

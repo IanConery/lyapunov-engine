@@ -1,13 +1,9 @@
-import pytest
 from lyapunov_engine.server.protocol import (
-    ChatMessage,
     ChatCompletionRequest,
     ChatCompletionResponse,
     ChatCompletionResponseChoice,
+    ChatMessage,
     UsageInfo,
-    CompletionRequest,
-    CompletionResponse,
-    CompletionResponseChoice
 )
 
 
@@ -16,11 +12,11 @@ def test_chat_protocol_serialization():
         model="meta-llama/Llama-3.2-1B-Instruct",
         messages=[
             ChatMessage(role="system", content="You are a helpful assistant."),
-            ChatMessage(role="user", content="Explain PagedAttention.")
+            ChatMessage(role="user", content="Explain PagedAttention."),
         ],
         temperature=0.7,
         max_tokens=64,
-        stream=True
+        stream=True,
     )
     req_dict = req.model_dump()
     assert req_dict["model"] == "meta-llama/Llama-3.2-1B-Instruct"
@@ -35,11 +31,13 @@ def test_completion_response_structure():
         choices=[
             ChatCompletionResponseChoice(
                 index=0,
-                message=ChatMessage(role="assistant", content="PagedAttention maps virtual KV blocks."),
-                finish_reason="stop"
+                message=ChatMessage(
+                    role="assistant", content="PagedAttention maps virtual KV blocks."
+                ),
+                finish_reason="stop",
             )
         ],
-        usage=UsageInfo(prompt_tokens=10, completion_tokens=8, total_tokens=18)
+        usage=UsageInfo(prompt_tokens=10, completion_tokens=8, total_tokens=18),
     )
     assert resp.choices[0].message.content == "PagedAttention maps virtual KV blocks."
     assert resp.usage.total_tokens == 18

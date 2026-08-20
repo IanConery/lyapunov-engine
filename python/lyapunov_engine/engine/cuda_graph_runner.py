@@ -1,6 +1,5 @@
-from typing import List, Dict, Optional, Tuple
 import torch
-import torch.nn as nn
+from torch import nn
 
 
 class CUDAGraphRunner:
@@ -9,18 +8,20 @@ class CUDAGraphRunner:
     def __init__(
         self,
         model: nn.Module,
-        batch_buckets: List[int] = [1, 2, 4, 8, 16, 32, 64],
+        batch_buckets: list[int] | None = None,
         device: str = "cuda:0",
-        dtype: torch.dtype = torch.float16
+        dtype: torch.dtype = torch.float16,
     ):
+        if batch_buckets is None:
+            batch_buckets = [1, 2, 4, 8, 16, 32, 64]
         self.model = model.eval()
         self.batch_buckets = sorted(batch_buckets)
         self.device = torch.device(device)
         self.dtype = dtype
 
-        self.graphs: Dict[int, torch.cuda.CUDAGraph] = {}
-        self.static_inputs: Dict[int, torch.Tensor] = {}
-        self.static_outputs: Dict[int, torch.Tensor] = {}
+        self.graphs: dict[int, torch.cuda.CUDAGraph] = {}
+        self.static_inputs: dict[int, torch.Tensor] = {}
+        self.static_outputs: dict[int, torch.Tensor] = {}
 
     def capture_graphs(self, max_bucket: int = 64):
         """Capture CUDA graphs for all supported batch buckets up to max_bucket."""

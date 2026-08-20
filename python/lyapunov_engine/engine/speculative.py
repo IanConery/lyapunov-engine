@@ -1,9 +1,6 @@
-from typing import List, Tuple, Optional
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-
-from lyapunov_engine.engine.sampling import SamplingParams, sample_next_tokens
+from torch import nn
 
 
 class SpeculativeDecoder:
@@ -12,9 +9,9 @@ class SpeculativeDecoder:
     def __init__(
         self,
         target_model: nn.Module,
-        draft_model: Optional[nn.Module] = None,
+        draft_model: nn.Module | None = None,
         num_draft_tokens: int = 4,
-        temperature: float = 0.7
+        temperature: float = 0.7,
     ):
         self.target_model = target_model.eval()
         self.draft_model = draft_model.eval() if draft_model is not None else None
@@ -30,18 +27,15 @@ class SpeculativeDecoder:
         return float(self.total_accepted) / float(self.total_drafted)
 
     def verify_draft_tokens(
-        self,
-        prefix_tokens: List[int],
-        draft_tokens: List[int],
-        device: str = "cpu"
-    ) -> Tuple[List[int], Optional[int]]:
+        self, prefix_tokens: list[int], draft_tokens: list[int], device: str = "cpu"
+    ) -> tuple[list[int], int | None]:
         """Verify draft tokens in a single target model forward pass.
-        
+
         Args:
             prefix_tokens: Conversation / prompt history.
             draft_tokens: Sequence of K candidate draft tokens.
             device: Compute device.
-            
+
         Returns:
             accepted_tokens: List of verified accepted tokens.
             bonus_token: Next token sampled from target distribution.
@@ -56,12 +50,12 @@ class SpeculativeDecoder:
 
         with torch.no_grad():
             # Single forward pass over prefix + draft tokens
-            target_logits = self.target_model(input_tensor)[0] # [seq_len, vocab_size]
+            target_logits = self.target_model(input_tensor)[0]  # [seq_len, vocab_size]
 
         # Extract target logits corresponding to draft positions
         # Target logit at (len(prefix) - 1 + i) predicts token draft_tokens[i]
         start_idx = len(prefix_tokens) - 1
-        relevant_logits = target_logits[start_idx : start_idx + k] # [K, vocab_size]
+        relevant_logits = target_logits[start_idx : start_idx + k]  # [K, vocab_size]
         target_probs = F.softmax(relevant_logits / max(self.temperature, 1e-4), dim=-1)
 
         accepted_tokens = []
@@ -87,16 +81,15 @@ class SpeculativeDecoder:
         self.total_accepted += len(accepted_tokens)
 
         # Sample bonus token
+        bonus_token: int | None = None
         if rejected:
             # Sample bonus token from the rejected position's target distribution
             bonus_logits = relevant_logits[rejection_idx : rejection_idx + 1]
-            bonus_token = torch.argmax(bonus_logits, dim=-1).item()
+            bonus_token = int(torch.argmax(bonus_logits, dim=-1).item())
         else:
             # All K tokens accepted, sample bonus token from step K+1
             if len(target_logits) >= len(full_seq):
                 bonus_logits = target_logits[-1:]
-                bonus_token = torch.argmax(bonus_logits, dim=-1).item()
-            else:
-                bonus_token = None
+                bonus_token = int(torch.argmax(bonus_logits, dim=-1).item())
 
         return accepted_tokens, bonus_token

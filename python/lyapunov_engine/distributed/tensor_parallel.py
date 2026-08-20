@@ -1,8 +1,6 @@
-from typing import Optional, Tuple
 import torch
-import torch.nn as nn
 import torch.distributed as dist
-
+from torch import nn
 
 _TP_RANK = 0
 _TP_WORLD_SIZE = 1
@@ -25,7 +23,7 @@ def get_tensor_parallel_world_size() -> int:
 
 class ColumnParallelLinear(nn.Module):
     """Linear layer with column parallelism (sharded across out_features).
-    
+
     Used for Q, K, V projections and gate_up projections in Megatron-LM architecture.
     """
 
@@ -34,22 +32,30 @@ class ColumnParallelLinear(nn.Module):
         in_features: int,
         out_features: int,
         bias: bool = False,
-        rank: Optional[int] = None,
-        world_size: Optional[int] = None,
-        device: Optional[torch.device] = None,
-        dtype: torch.dtype = torch.float16
+        rank: int | None = None,
+        world_size: int | None = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype = torch.float16,
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.rank = rank if rank is not None else get_tensor_parallel_rank()
-        self.world_size = world_size if world_size is not None else get_tensor_parallel_world_size()
+        self.world_size = (
+            world_size if world_size is not None else get_tensor_parallel_world_size()
+        )
 
-        assert out_features % self.world_size == 0, "out_features must be divisible by world_size"
+        assert out_features % self.world_size == 0, (
+            "out_features must be divisible by world_size"
+        )
         self.out_features_per_partition = out_features // self.world_size
 
         self.weight = nn.Parameter(
-            torch.empty((self.out_features_per_partition, in_features), dtype=dtype, device=device)
+            torch.empty(
+                (self.out_features_per_partition, in_features),
+                dtype=dtype,
+                device=device,
+            )
         )
         if bias:
             self.bias = nn.Parameter(
@@ -80,7 +86,7 @@ class ColumnParallelLinear(nn.Module):
 
 class RowParallelLinear(nn.Module):
     """Linear layer with row parallelism (sharded across in_features).
-    
+
     Used for Attention output projections (O) and MLP down projections.
     Performs an all-reduce sum collective operation across tensor parallel ranks.
     """
@@ -90,22 +96,30 @@ class RowParallelLinear(nn.Module):
         in_features: int,
         out_features: int,
         bias: bool = False,
-        rank: Optional[int] = None,
-        world_size: Optional[int] = None,
-        device: Optional[torch.device] = None,
-        dtype: torch.dtype = torch.float16
+        rank: int | None = None,
+        world_size: int | None = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype = torch.float16,
     ):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.rank = rank if rank is not None else get_tensor_parallel_rank()
-        self.world_size = world_size if world_size is not None else get_tensor_parallel_world_size()
+        self.world_size = (
+            world_size if world_size is not None else get_tensor_parallel_world_size()
+        )
 
-        assert in_features % self.world_size == 0, "in_features must be divisible by world_size"
+        assert in_features % self.world_size == 0, (
+            "in_features must be divisible by world_size"
+        )
         self.in_features_per_partition = in_features // self.world_size
 
         self.weight = nn.Parameter(
-            torch.empty((out_features, self.in_features_per_partition), dtype=dtype, device=device)
+            torch.empty(
+                (out_features, self.in_features_per_partition),
+                dtype=dtype,
+                device=device,
+            )
         )
         if bias:
             self.bias = nn.Parameter(
@@ -146,23 +160,33 @@ class ParallelEmbedding(nn.Module):
         self,
         num_embeddings: int,
         embedding_dim: int,
-        rank: Optional[int] = None,
-        world_size: Optional[int] = None,
-        device: Optional[torch.device] = None,
-        dtype: torch.dtype = torch.float16
+        rank: int | None = None,
+        world_size: int | None = None,
+        device: torch.device | None = None,
+        dtype: torch.dtype = torch.float16,
     ):
         super().__init__()
         self.num_embeddings = num_embeddings
         self.embedding_dim = embedding_dim
         self.rank = rank if rank is not None else get_tensor_parallel_rank()
-        self.world_size = world_size if world_size is not None else get_tensor_parallel_world_size()
+        self.world_size = (
+            world_size if world_size is not None else get_tensor_parallel_world_size()
+        )
 
-        self.vocab_per_partition = (num_embeddings + self.world_size - 1) // self.world_size
+        self.vocab_per_partition = (
+            num_embeddings + self.world_size - 1
+        ) // self.world_size
         self.vocab_start_idx = self.rank * self.vocab_per_partition
-        self.vocab_end_idx = min(self.vocab_start_idx + self.vocab_per_partition, num_embeddings)
+        self.vocab_end_idx = min(
+            self.vocab_start_idx + self.vocab_per_partition, num_embeddings
+        )
 
         self.weight = nn.Parameter(
-            torch.empty((self.vocab_end_idx - self.vocab_start_idx, embedding_dim), dtype=dtype, device=device)
+            torch.empty(
+                (self.vocab_end_idx - self.vocab_start_idx, embedding_dim),
+                dtype=dtype,
+                device=device,
+            )
         )
         nn.init.normal_(self.weight, mean=0.0, std=0.02)
 

@@ -66,11 +66,10 @@ graph TD
 
 ## 2. Supported Model Architectures & Formats
 
-### Supported Model Families
-* **Qwen Series**: `Qwen/Qwen2.5-0.5B-Instruct`, `Qwen/Qwen2.5-1.5B-Instruct`, `Qwen/Qwen2.5-7B-Instruct`, `Qwen/Qwen2-7B`
-* **Mistral Series**: `mistralai/Mistral-7B-Instruct-v0.3`, `mistralai/Mistral-7B-v0.1`
-* **Yi & SmolLM Series**: `01-ai/Yi-1.5-6B-Chat`, `HuggingFaceTB/SmolLM2-1.7B-Instruct`, `HuggingFaceTB/SmolLM-360M`
-* **DeepSeek Architecture**: Multi-Head & Multi-Query Attention architectures with SwiGLU/RMSNorm layers.
+### Supported Architectures (Families)
+* **LLaMA Architecture (Mistral, Mixtral, Yi, SmolLM, Vicuna, OpenLLaMA)**: Autoregressive transformer decoders utilizing RMSNorm pre-normalization, SwiGLU feedforward projections, and Rotary Position Embeddings (RoPE) with Multi-Head (MHA) and Grouped-Query Attention (GQA).
+* **Qwen Architecture (Qwen, Qwen2, Qwen2.5)**: Dense autoregressive models with tied/untied embedding vocabularies, grouped query layouts, and fused projection layers.
+* **DeepSeek Architecture (DeepSeek-V2, DeepSeek-V3, MoE Attention)**: Multi-Head and Multi-Query Attention pipelines with interleaved SwiGLU activation paths and normalization blocks.
 
 ### Supported File Formats & Checkpoint Types
 * **Hugging Face Hub / Local Safetensors (`.safetensors`, `.bin`)**: Direct download and ingestion with fused gate-up projection layers.

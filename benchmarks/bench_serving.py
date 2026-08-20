@@ -1,16 +1,23 @@
-import time
 import argparse
+import time
+
 import torch
-from lyapunov_engine.models.llama import LlamaForCausalLM, LlamaConfig
 from lyapunov_engine.engine.llm_engine import LLMEngine
 from lyapunov_engine.engine.sampling import SamplingParams
+from lyapunov_engine.models.llama import LlamaConfig, LlamaForCausalLM
 
 
-def run_serving_benchmark(batch_sizes=[1, 4, 8, 16], prompt_len=128, gen_tokens=32):
+def run_serving_benchmark(batch_sizes=None, prompt_len=128, gen_tokens=32):
+    if batch_sizes is None:
+        batch_sizes = [1, 4, 8, 16]
     print("=" * 80)
-    print(f"Benchmarking End-to-End Serving Engine (Prompt: {prompt_len} toks, Gen: {gen_tokens} toks)")
+    print(
+        f"Benchmarking End-to-End Serving Engine (Prompt: {prompt_len} toks, Gen: {gen_tokens} toks)"
+    )
     print("=" * 80)
-    print(f"{'Batch Size':<12} | {'TTFT (ms)':<12} | {'ITL (ms)':<12} | {'Throughput (tok/s)':<20}")
+    print(
+        f"{'Batch Size':<12} | {'TTFT (ms)':<12} | {'ITL (ms)':<12} | {'Throughput (tok/s)':<20}"
+    )
     print("-" * 80)
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -21,7 +28,7 @@ def run_serving_benchmark(batch_sizes=[1, 4, 8, 16], prompt_len=128, gen_tokens=
         num_hidden_layers=8,
         num_attention_heads=16,
         num_key_value_heads=4,
-        head_dim=64
+        head_dim=64,
     )
 
     model = LlamaForCausalLM(config).half().to(device)
@@ -33,7 +40,7 @@ def run_serving_benchmark(batch_sizes=[1, 4, 8, 16], prompt_len=128, gen_tokens=
             block_size=16,
             max_num_seqs=b,
             max_num_batched_tokens=4096,
-            device=device
+            device=device,
         )
 
         sampling_params = SamplingParams(max_tokens=gen_tokens, temperature=0.0)
@@ -47,7 +54,7 @@ def run_serving_benchmark(batch_sizes=[1, 4, 8, 16], prompt_len=128, gen_tokens=
         # Time TTFT (Prefill)
         torch.cuda.synchronize()
         t0 = time.perf_counter()
-        prefill_out = engine.step()
+        engine.step()
         torch.cuda.synchronize()
         ttft_ms = (time.perf_counter() - t0) * 1000.0
 

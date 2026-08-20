@@ -1,6 +1,6 @@
 import os
-import sys
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 # Allow minor CUDA toolkit version mismatch between host nvcc and prebuilt PyTorch
 os.environ["TORCH_ALLOW_CUDA_VERSION_MISMATCH"] = "1"

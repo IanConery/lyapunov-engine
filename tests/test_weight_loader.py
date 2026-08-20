@@ -1,4 +1,3 @@
-import pytest
 import torch
 from lyapunov_engine.models.llama import LlamaConfig, LlamaForCausalLM
 from lyapunov_engine.models.weight_loader import load_hf_weights_into_model
@@ -13,7 +12,7 @@ def test_weight_loader_synthetic_state_dict():
         num_attention_heads=4,
         num_key_value_heads=2,
         head_dim=16,
-        max_position_embeddings=512
+        max_position_embeddings=512,
     )
 
     model = LlamaForCausalLM(config)
@@ -47,5 +46,11 @@ def test_weight_loader_synthetic_state_dict():
 
     # Verify gate_up_proj was fused properly: shape [2 * 128, 64] = [256, 64]
     assert model.layers[0].mlp.gate_up_proj.weight.shape == (256, 64)
-    expected_fused_0 = torch.cat([weights["model.layers.0.mlp.gate_proj.weight"], weights["model.layers.0.mlp.up_proj.weight"]], dim=0)
+    expected_fused_0 = torch.cat(
+        [
+            weights["model.layers.0.mlp.gate_proj.weight"],
+            weights["model.layers.0.mlp.up_proj.weight"],
+        ],
+        dim=0,
+    )
     assert torch.allclose(model.layers[0].mlp.gate_up_proj.weight, expected_fused_0)

@@ -1,30 +1,33 @@
-from typing import List, Optional, Dict, Union
+from typing import cast
+
 import torch
-import torch.nn as nn
+from torch import nn
 
 try:
-    from lyapunov_engine import _C
+    from lyapunov_engine import _C  # type: ignore[attr-defined]
+
     HAS_CUDA_EXT = True
 except ImportError:
     _C = None
     HAS_CUDA_EXT = False
 
 from lyapunov_engine.engine.sampling import SamplingParams, sample_next_tokens
-from lyapunov_engine.models.llama import LlamaForCausalLM, LlamaConfig
+from lyapunov_engine.models.llama import LlamaConfig
 
 
 class EngineConfig:
     """Runtime configuration parameters for LLMEngine."""
+
     def __init__(
         self,
         model_config=None,
         num_blocks: int = 1024,
-        num_gpu_blocks: Optional[int] = None,
+        num_gpu_blocks: int | None = None,
         block_size: int = 16,
         max_num_seqs: int = 64,
         max_num_batched_tokens: int = 2048,
         dtype: torch.dtype = torch.float16,
-        device: str = "cuda:0"
+        device: str = "cuda:0",
     ):
         self.model_config = model_config
         self.num_blocks = num_gpu_blocks if num_gpu_blocks is not None else num_blocks
@@ -36,7 +39,14 @@ class EngineConfig:
 
 
 class RequestOutput:
-    def __init__(self, request_id: Union[int, str], prompt_tokens: List[int], output_tokens: List[int], finished: bool, finish_reason: Optional[str] = "stop"):
+    def __init__(
+        self,
+        request_id: int | str,
+        prompt_tokens: list[int],
+        output_tokens: list[int],
+        finished: bool,
+        finish_reason: str | None = "stop",
+    ):
         self.request_id = request_id
         self.prompt_tokens = prompt_tokens
         self.output_tokens = output_tokens
@@ -46,21 +56,23 @@ class RequestOutput:
 
 
 class PythonSequence:
-    def __init__(self, seq_id: int, prompt_tokens: List[int], sampling_params: SamplingParams):
+    def __init__(
+        self, seq_id: int, prompt_tokens: list[int], sampling_params: SamplingParams
+    ):
         self.seq_id = seq_id
         self.prompt_tokens = prompt_tokens
-        self.output_tokens = []
+        self.output_tokens: list[int] = []
         self.sampling_params = sampling_params
-        self.block_table = []
+        self.block_table: list[int] = []
         self.status = "WAITING"
 
     def get_seq_id(self) -> int:
         return self.seq_id
 
-    def get_prompt_tokens(self) -> List[int]:
+    def get_prompt_tokens(self) -> list[int]:
         return self.prompt_tokens
 
-    def get_output_tokens(self) -> List[int]:
+    def get_output_tokens(self) -> list[int]:
         return self.output_tokens
 
     def get_total_len(self) -> int:
@@ -71,7 +83,7 @@ class PythonSequence:
             return self.output_tokens[-1]
         return self.prompt_tokens[-1]
 
-    def get_block_table(self) -> List[int]:
+    def get_block_table(self) -> list[int]:
         return self.block_table
 
     def is_finished(self) -> bool:
@@ -82,12 +94,12 @@ class LLMEngine:
     def __init__(
         self,
         model: nn.Module,
-        config: Optional[EngineConfig] = None,
+        config: EngineConfig | None = None,
         num_blocks: int = 1024,
         block_size: int = 16,
         max_num_seqs: int = 64,
         max_num_batched_tokens: int = 2048,
-        device: str = "cuda:0"
+        device: str = "cuda:0",
     ):
         if config is not None:
             self.device = torch.device(config.device)
@@ -108,7 +120,9 @@ class LLMEngine:
 
         # Initialize C++ BlockManager and Scheduler if available, else Python fallback
         if HAS_CUDA_EXT:
-            self.block_manager = _C.BlockSpaceManager(self.num_blocks, self.block_size, True)
+            self.block_manager = _C.BlockSpaceManager(
+                self.num_blocks, self.block_size, True
+            )
             sched_cfg = _C.SchedulerConfig()
             sched_cfg.max_num_seqs = self.max_num_seqs
             sched_cfg.max_num_batched_tokens = self.max_num_batched_tokens
@@ -116,8 +130,8 @@ class LLMEngine:
             self.use_cpp_runtime = True
         else:
             self.use_cpp_runtime = False
-            self.waiting_queue: List[PythonSequence] = []
-            self.running_queue: List[PythonSequence] = []
+            self.waiting_queue: list[PythonSequence] = []
+            self.running_queue: list[PythonSequence] = []
             self.free_blocks = list(range(self.num_blocks))
 
         # Allocate KV Cache memory pools on GPU
@@ -127,36 +141,54 @@ class LLMEngine:
         head_dim = model_config.head_dim
 
         self.k_caches = [
-            torch.zeros((self.num_blocks, num_kv_heads, self.block_size, head_dim), dtype=self.dtype, device=self.device)
+            torch.zeros(
+                (self.num_blocks, num_kv_heads, self.block_size, head_dim),
+                dtype=self.dtype,
+                device=self.device,
+            )
             for _ in range(num_layers)
         ]
         self.v_caches = [
-            torch.zeros((self.num_blocks, num_kv_heads, self.block_size, head_dim), dtype=self.dtype, device=self.device)
+            torch.zeros(
+                (self.num_blocks, num_kv_heads, self.block_size, head_dim),
+                dtype=self.dtype,
+                device=self.device,
+            )
             for _ in range(num_layers)
         ]
 
         self.req_counter = 0
-        self.active_sequences: Dict[Union[int, str], object] = {}
+        self.active_sequences: dict[
+            int | str, tuple[object, SamplingParams, int | str]
+        ] = {}
 
     def add_request(
         self,
-        arg1: Union[int, str, List[int]],
-        arg2: Optional[Union[List[int], SamplingParams]] = None,
-        arg3: Optional[SamplingParams] = None
-    ) -> Union[int, str]:
+        arg1: int | str | list[int],
+        arg2: list[int] | SamplingParams | None = None,
+        arg3: SamplingParams | None = None,
+    ) -> int | str:
         """Add a request. Supports:
         - add_request(prompt_tokens, sampling_params)
         - add_request(request_id, prompt_tokens, sampling_params)
         """
+        request_id: int | str
+        prompt_tokens: list[int]
+        sampling_params: SamplingParams
+
         if isinstance(arg1, (int, str)) and isinstance(arg2, list):
             request_id = arg1
             prompt_tokens = arg2
             sampling_params = arg3 or SamplingParams()
-        else:
+        elif isinstance(arg1, list):
             request_id = self.req_counter
             self.req_counter += 1
             prompt_tokens = arg1
-            sampling_params = arg2 or SamplingParams()
+            sampling_params = (
+                arg2 if isinstance(arg2, SamplingParams) else SamplingParams()
+            )
+        else:
+            raise TypeError("Invalid arguments provided to add_request")
 
         seq_id = self.req_counter
         self.req_counter += 1
@@ -184,7 +216,7 @@ class LLMEngine:
             return self.scheduler.has_unfinished_sequences()
         return len(self.waiting_queue) > 0 or len(self.running_queue) > 0
 
-    def step(self) -> List[RequestOutput]:
+    def step(self) -> list[RequestOutput]:
         if not self.has_unfinished_requests():
             return []
 
@@ -199,22 +231,34 @@ class LLMEngine:
 
             # Build metadata tensors
             context_lens_list = [s.get_total_len() for s in scheduled_seqs]
-            max_blocks = max(len(s.get_block_table()) for s in scheduled_seqs) if scheduled_seqs else 1
+            max_blocks = (
+                max(len(s.get_block_table()) for s in scheduled_seqs)
+                if scheduled_seqs
+                else 1
+            )
             if max_blocks == 0:
                 max_blocks = 1
 
-            block_tables_tensor = torch.zeros((batch_size, max_blocks), dtype=torch.int32, device=self.device)
+            block_tables_tensor = torch.zeros(
+                (batch_size, max_blocks), dtype=torch.int32, device=self.device
+            )
             for i, s in enumerate(scheduled_seqs):
                 tbl = s.get_block_table()
                 if tbl:
-                    block_tables_tensor[i, :len(tbl)] = torch.tensor(tbl, dtype=torch.int32, device=self.device)
+                    block_tables_tensor[i, : len(tbl)] = torch.tensor(
+                        tbl, dtype=torch.int32, device=self.device
+                    )
 
-            context_lens_tensor = torch.tensor(context_lens_list, dtype=torch.int32, device=self.device)
+            context_lens_tensor = torch.tensor(
+                context_lens_list, dtype=torch.int32, device=self.device
+            )
 
             if is_prefill:
                 logits_list = []
                 for i, seq in enumerate(scheduled_seqs):
-                    tokens = torch.tensor([seq.get_prompt_tokens()], dtype=torch.long, device=self.device)
+                    tokens = torch.tensor(
+                        [seq.get_prompt_tokens()], dtype=torch.long, device=self.device
+                    )
                     b_table = block_tables_tensor[i : i + 1]
                     c_lens = context_lens_tensor[i : i + 1]
                     with torch.no_grad():
@@ -224,12 +268,16 @@ class LLMEngine:
                             v_caches=self.v_caches,
                             block_tables=b_table,
                             context_lens=c_lens,
-                            is_prefill=True
+                            is_prefill=True,
                         )[:, -1, :]
                         logits_list.append(l)
                 logits = torch.cat(logits_list, dim=0)
             else:
-                tokens = torch.tensor([[s.get_last_token_id()] for s in scheduled_seqs], dtype=torch.long, device=self.device)
+                tokens = torch.tensor(
+                    [[s.get_last_token_id()] for s in scheduled_seqs],
+                    dtype=torch.long,
+                    device=self.device,
+                )
                 with torch.no_grad():
                     logits = self.model(
                         tokens,
@@ -237,23 +285,28 @@ class LLMEngine:
                         v_caches=self.v_caches,
                         block_tables=block_tables_tensor,
                         context_lens=context_lens_tensor,
-                        is_prefill=False
+                        is_prefill=False,
                     )[:, -1, :]
 
-            sp_list = [self.active_sequences[s.get_seq_id()][1] for s in scheduled_seqs]
+            sp_list = [
+                cast(SamplingParams, self.active_sequences[s.get_seq_id()][1])
+                for s in scheduled_seqs
+            ]
             next_tokens = sample_next_tokens(logits, sp_list)
             self.scheduler.post_step(scheduled_seqs, next_tokens)
 
             outputs = []
             for s in scheduled_seqs:
-                req_id = self.active_sequences[s.get_seq_id()][2]
-                outputs.append(RequestOutput(
-                    request_id=req_id,
-                    prompt_tokens=s.get_prompt_tokens(),
-                    output_tokens=s.get_output_tokens(),
-                    finished=s.is_finished(),
-                    finish_reason="stop" if s.is_finished() else None
-                ))
+                req_id = cast(int | str, self.active_sequences[s.get_seq_id()][2])
+                outputs.append(
+                    RequestOutput(
+                        request_id=req_id,
+                        prompt_tokens=s.get_prompt_tokens(),
+                        output_tokens=s.get_output_tokens(),
+                        finished=s.is_finished(),
+                        finish_reason="stop" if s.is_finished() else None,
+                    )
+                )
             return outputs
         else:
             return []

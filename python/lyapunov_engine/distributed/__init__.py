@@ -2,18 +2,18 @@
 
 from lyapunov_engine.distributed.tensor_parallel import (
     ColumnParallelLinear,
-    RowParallelLinear,
     ParallelEmbedding,
-    initialize_tensor_parallel,
+    RowParallelLinear,
     get_tensor_parallel_rank,
-    get_tensor_parallel_world_size
+    get_tensor_parallel_world_size,
+    initialize_tensor_parallel,
 )
 
 __all__ = [
     "ColumnParallelLinear",
-    "RowParallelLinear",
     "ParallelEmbedding",
-    "initialize_tensor_parallel",
+    "RowParallelLinear",
     "get_tensor_parallel_rank",
-    "get_tensor_parallel_world_size"
+    "get_tensor_parallel_world_size",
+    "initialize_tensor_parallel",
 ]

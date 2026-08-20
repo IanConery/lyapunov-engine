@@ -1,10 +1,11 @@
 from enum import IntEnum
-from typing import Optional, Union
+
 import torch
-import torch.nn as nn
+from torch import nn
 
 try:
-    from lyapunov_engine import _C
+    from lyapunov_engine import _C  # type: ignore[attr-defined]
+
     HAS_CUDA_EXT = True
 except ImportError:
     _C = None
@@ -26,10 +27,10 @@ class QuantizedLinear(nn.Module):
         self,
         in_features: int,
         out_features: int,
-        qtype: Union[QuantType, int] = QuantType.Q4_0,
+        qtype: QuantType | int = QuantType.Q4_0,
         bias: bool = False,
-        device: Optional[torch.device] = None,
-        dtype: torch.dtype = torch.float16
+        device: torch.device | None = None,
+        dtype: torch.dtype = torch.float16,
     ):
         super().__init__()
         self.in_features = in_features
@@ -39,22 +40,32 @@ class QuantizedLinear(nn.Module):
         self.dtype = dtype
 
         # Raw packed weight storage
-        self.register_buffer("qweight", torch.empty(0, dtype=torch.uint8, device=self.device))
-        self.register_buffer("scales", torch.empty(0, dtype=torch.float32, device=self.device))
-        self.register_buffer("scale_x", torch.tensor(1.0, dtype=torch.float32, device=self.device))
-        self.register_buffer("scale_w", torch.tensor(1.0, dtype=torch.float32, device=self.device))
+        self.register_buffer(
+            "qweight", torch.empty(0, dtype=torch.uint8, device=self.device)
+        )
+        self.register_buffer(
+            "scales", torch.empty(0, dtype=torch.float32, device=self.device)
+        )
+        self.register_buffer(
+            "scale_x", torch.tensor(1.0, dtype=torch.float32, device=self.device)
+        )
+        self.register_buffer(
+            "scale_w", torch.tensor(1.0, dtype=torch.float32, device=self.device)
+        )
 
         if bias:
-            self.bias = nn.Parameter(torch.zeros(out_features, dtype=dtype, device=self.device))
+            self.bias = nn.Parameter(
+                torch.zeros(out_features, dtype=dtype, device=self.device)
+            )
         else:
             self.register_parameter("bias", None)
 
     def set_quant_weights(
         self,
         qweight: torch.Tensor,
-        scales: Optional[torch.Tensor] = None,
+        scales: torch.Tensor | None = None,
         scale_x: float = 1.0,
-        scale_w: float = 1.0
+        scale_w: float = 1.0,
     ):
         self.qweight = qweight.to(self.device)
         if scales is not None:
@@ -75,7 +86,7 @@ class QuantizedLinear(nn.Module):
                     self.scales if self.scales.numel() > 0 else None,
                     self.in_features,
                     self.out_features,
-                    int(self.qtype)
+                    int(self.qtype),
                 ).to(x.dtype)
             elif self.qtype == QuantType.FP8_E4M3:
                 # Custom CUDA FP8 GEMM
@@ -83,14 +94,14 @@ class QuantizedLinear(nn.Module):
                     x_2d.view(torch.uint8).contiguous(),
                     self.qweight.contiguous(),
                     float(self.scale_x),
-                    float(self.scale_w)
+                    float(self.scale_w),
                 ).to(x.dtype)
             elif self.qtype == QuantType.MARLIN_W4A16:
                 # Custom CUDA Marlin W4A16 GEMM
                 out = _C.marlin_gemm(
                     x_2d.float().contiguous(),
                     self.qweight.view(torch.int32).contiguous(),
-                    self.scales.contiguous()
+                    self.scales.contiguous(),
                 ).to(x.dtype)
             else:
                 # CPU / Eager fallback dequantization
@@ -111,18 +122,22 @@ class QuantizedLinear(nn.Module):
             raw_bytes = self.qweight.view(torch.uint8)
             weights = []
             for b in range(num_blocks):
-                d = torch.frombuffer(raw_bytes[b * 18 : b * 18 + 2].cpu().numpy(), dtype=torch.float16).item()
+                d = torch.frombuffer(
+                    raw_bytes[b * 18 : b * 18 + 2].cpu().numpy(), dtype=torch.float16
+                ).item()
                 qs = raw_bytes[b * 18 + 2 : (b + 1) * 18]
                 for i in range(16):
-                    byte = qs[i].item()
+                    byte = int(qs[i].item())
                     v0 = (byte & 0x0F) - 8
                     v1 = (byte >> 4) - 8
                     weights.append(v0 * d)
                 for i in range(16):
-                    byte = qs[i].item()
+                    byte = int(qs[i].item())
                     v1 = (byte >> 4) - 8
                     weights.append(v1 * d)
-            w_mat = torch.tensor(weights, dtype=x_2d.dtype, device=x_2d.device).view(self.out_features, self.in_features)
+            w_mat = torch.tensor(weights, dtype=x_2d.dtype, device=x_2d.device).view(
+                self.out_features, self.in_features
+            )
             return torch.matmul(x_2d, w_mat.t())
 
         elif self.qtype == QuantType.Q8_0:
@@ -130,11 +145,17 @@ class QuantizedLinear(nn.Module):
             raw_bytes = self.qweight.view(torch.uint8)
             weights = []
             for b in range(num_blocks):
-                d = torch.frombuffer(raw_bytes[b * 34 : b * 34 + 2].cpu().numpy(), dtype=torch.float16).item()
+                d = torch.frombuffer(
+                    raw_bytes[b * 34 : b * 34 + 2].cpu().numpy(), dtype=torch.float16
+                ).item()
                 qs = raw_bytes[b * 34 + 2 : (b + 1) * 34].view(torch.int8)
                 for val in qs:
                     weights.append(val.item() * d)
-            w_mat = torch.tensor(weights, dtype=x_2d.dtype, device=x_2d.device).view(self.out_features, self.in_features)
+            w_mat = torch.tensor(weights, dtype=x_2d.dtype, device=x_2d.device).view(
+                self.out_features, self.in_features
+            )
             return torch.matmul(x_2d, w_mat.t())
 
-        return torch.zeros((x_2d.size(0), self.out_features), dtype=x_2d.dtype, device=x_2d.device)
+        return torch.zeros(
+            (x_2d.size(0), self.out_features), dtype=x_2d.dtype, device=x_2d.device
+        )

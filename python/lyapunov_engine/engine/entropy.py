@@ -1,6 +1,4 @@
 import math
-from typing import List, Tuple, Dict
-import numpy as np
 
 
 def simple_string_similarity(a: str, b: str) -> float:
@@ -17,15 +15,14 @@ def simple_string_similarity(a: str, b: str) -> float:
 
 
 def compute_semantic_entropy(
-    candidate_texts: List[str],
-    similarity_threshold: float = 0.65
-) -> Tuple[float, str, List[int]]:
+    candidate_texts: list[str], similarity_threshold: float = 0.65
+) -> tuple[float, str, list[int]]:
     """Compute Semantic Entropy across candidate generations.
-    
+
     Args:
         candidate_texts: List of N stochastic response strings.
         similarity_threshold: Overlap threshold to cluster texts into the same semantic attractor.
-        
+
     Returns:
         entropy: Discrete Shannon entropy across semantic clusters.
         confidence_rating: "high", "moderate", or "low".
@@ -35,7 +32,7 @@ def compute_semantic_entropy(
         return 0.0, "high", []
 
     n = len(candidate_texts)
-    clusters: List[List[int]] = []
+    clusters: list[list[int]] = []
     cluster_assignments = [-1] * n
 
     # Group candidate responses into semantic clusters
@@ -57,7 +54,7 @@ def compute_semantic_entropy(
             cluster_assignments[i] = new_c_idx
 
     # Compute discrete probability distribution over clusters
-    num_clusters = len(clusters)
+    len(clusters)
     probs = [len(c) / float(n) for c in clusters]
 
     # Calculate discrete Shannon entropy

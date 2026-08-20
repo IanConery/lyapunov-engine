@@ -1,11 +1,8 @@
-from typing import List, Dict, Optional, Tuple
-
-
 class PrefixNode:
     def __init__(self, block_id: int = -1):
         self.block_id = block_id
         self.ref_count = 1
-        self.children: Dict[int, "PrefixNode"] = {}
+        self.children: dict[int, PrefixNode] = {}
 
 
 class RadixPrefixCache:
@@ -16,7 +13,7 @@ class RadixPrefixCache:
         self.root = PrefixNode(-1)
         self.cached_blocks_count = 0
 
-    def match_prefix(self, prompt_tokens: List[int]) -> List[int]:
+    def match_prefix(self, prompt_tokens: list[int]) -> list[int]:
         """Find cached physical block IDs matching the prompt prefix."""
         matched_blocks = []
         curr = self.root
@@ -37,7 +34,7 @@ class RadixPrefixCache:
 
         return matched_blocks
 
-    def insert_prefix(self, prompt_tokens: List[int], block_ids: List[int]):
+    def insert_prefix(self, prompt_tokens: list[int], block_ids: list[int]):
         """Cache block mappings for future multi-turn / system prompt reuse."""
         num_blocks = min(len(prompt_tokens) // self.block_size, len(block_ids))
         curr = self.root

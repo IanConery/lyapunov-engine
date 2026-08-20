@@ -1,9 +1,9 @@
-import math
 from dataclasses import dataclass
-from typing import Optional, Tuple
+
 import torch
-import torch.nn as nn
-from lyapunov_engine.ops import rmsnorm, swiglu, flash_attn_v2, paged_attention
+from torch import nn
+
+from lyapunov_engine.ops import flash_attn_v2, paged_attention, rmsnorm, swiglu
 
 
 @dataclass
@@ -21,9 +21,7 @@ class LlamaConfig:
 
 
 def apply_rotary_pos_emb(
-    x: torch.Tensor,
-    cos: torch.Tensor,
-    sin: torch.Tensor
+    x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor
 ) -> torch.Tensor:
     """Apply RoPE rotation to query or key tensor."""
     d = x.shape[-1]
@@ -54,29 +52,55 @@ class LlamaAttention(nn.Module):
         hidden_states: torch.Tensor,
         cos: torch.Tensor,
         sin: torch.Tensor,
-        k_cache: Optional[torch.Tensor] = None,
-        v_cache: Optional[torch.Tensor] = None,
-        block_tables: Optional[torch.Tensor] = None,
-        context_lens: Optional[torch.Tensor] = None,
-        is_prefill: bool = True
+        k_cache: torch.Tensor | None = None,
+        v_cache: torch.Tensor | None = None,
+        block_tables: torch.Tensor | None = None,
+        context_lens: torch.Tensor | None = None,
+        is_prefill: bool = True,
     ) -> torch.Tensor:
         batch_size, seq_len, _ = hidden_states.shape
 
-        q = self.q_proj(hidden_states).view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
-        k = self.k_proj(hidden_states).view(batch_size, seq_len, self.num_kv_heads, self.head_dim).transpose(1, 2)
-        v = self.v_proj(hidden_states).view(batch_size, seq_len, self.num_kv_heads, self.head_dim).transpose(1, 2)
+        q = (
+            self.q_proj(hidden_states)
+            .view(batch_size, seq_len, self.num_heads, self.head_dim)
+            .transpose(1, 2)
+        )
+        k = (
+            self.k_proj(hidden_states)
+            .view(batch_size, seq_len, self.num_kv_heads, self.head_dim)
+            .transpose(1, 2)
+        )
+        v = (
+            self.v_proj(hidden_states)
+            .view(batch_size, seq_len, self.num_kv_heads, self.head_dim)
+            .transpose(1, 2)
+        )
 
         q = apply_rotary_pos_emb(q, cos, sin)
         k = apply_rotary_pos_emb(k, cos, sin)
 
         if is_prefill or k_cache is None:
             # Prefill phase: FlashAttention-2
-            attn_out = flash_attn_v2(q, k, v, is_causal=True) # [batch, num_heads, seq_len, head_dim]
-            attn_out = attn_out.transpose(1, 2).contiguous().view(batch_size, seq_len, self.q_size)
+            attn_out = flash_attn_v2(
+                q, k, v, is_causal=True
+            )  # [batch, num_heads, seq_len, head_dim]
+            attn_out = (
+                attn_out.transpose(1, 2)
+                .contiguous()
+                .view(batch_size, seq_len, self.q_size)
+            )
         else:
             # Decode phase: PagedAttention
-            q_dec = q.squeeze(2) # [batch, num_heads, head_dim]
-            attn_out = paged_attention(q_dec, k_cache, v_cache, block_tables, context_lens)
+            assert (
+                k_cache is not None
+                and v_cache is not None
+                and block_tables is not None
+                and context_lens is not None
+            )
+            q_dec = q.squeeze(2)  # [batch, num_heads, head_dim]
+            attn_out = paged_attention(
+                q_dec, k_cache, v_cache, block_tables, context_lens
+            )
             attn_out = attn_out.view(batch_size, 1, self.q_size)
 
         return self.o_proj(attn_out)
@@ -85,8 +109,12 @@ class LlamaAttention(nn.Module):
 class LlamaMLP(nn.Module):
     def __init__(self, config: LlamaConfig):
         super().__init__()
-        self.gate_up_proj = nn.Linear(config.hidden_size, 2 * config.intermediate_size, bias=False)
-        self.down_proj = nn.Linear(config.intermediate_size, config.hidden_size, bias=False)
+        self.gate_up_proj = nn.Linear(
+            config.hidden_size, 2 * config.intermediate_size, bias=False
+        )
+        self.down_proj = nn.Linear(
+            config.intermediate_size, config.hidden_size, bias=False
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         gate_up = self.gate_up_proj(x)
@@ -100,7 +128,9 @@ class LlamaDecoderLayer(nn.Module):
         self.self_attn = LlamaAttention(config)
         self.mlp = LlamaMLP(config)
         self.input_layernorm_weight = nn.Parameter(torch.ones(config.hidden_size))
-        self.post_attention_layernorm_weight = nn.Parameter(torch.ones(config.hidden_size))
+        self.post_attention_layernorm_weight = nn.Parameter(
+            torch.ones(config.hidden_size)
+        )
         self.eps = config.rms_norm_eps
 
     def forward(
@@ -108,22 +138,28 @@ class LlamaDecoderLayer(nn.Module):
         hidden_states: torch.Tensor,
         cos: torch.Tensor,
         sin: torch.Tensor,
-        k_cache: Optional[torch.Tensor] = None,
-        v_cache: Optional[torch.Tensor] = None,
-        block_tables: Optional[torch.Tensor] = None,
-        context_lens: Optional[torch.Tensor] = None,
-        is_prefill: bool = True
+        k_cache: torch.Tensor | None = None,
+        v_cache: torch.Tensor | None = None,
+        block_tables: torch.Tensor | None = None,
+        context_lens: torch.Tensor | None = None,
+        is_prefill: bool = True,
     ) -> torch.Tensor:
         normed_input, _ = rmsnorm(hidden_states, self.input_layernorm_weight, self.eps)
         attn_out = self.self_attn(
-            normed_input, cos, sin,
-            k_cache=k_cache, v_cache=v_cache,
-            block_tables=block_tables, context_lens=context_lens,
-            is_prefill=is_prefill
+            normed_input,
+            cos,
+            sin,
+            k_cache=k_cache,
+            v_cache=v_cache,
+            block_tables=block_tables,
+            context_lens=context_lens,
+            is_prefill=is_prefill,
         )
         hidden_states = hidden_states + attn_out
 
-        normed_post, _ = rmsnorm(hidden_states, self.post_attention_layernorm_weight, self.eps)
+        normed_post, _ = rmsnorm(
+            hidden_states, self.post_attention_layernorm_weight, self.eps
+        )
         mlp_out = self.mlp(normed_post)
         hidden_states = hidden_states + mlp_out
         return hidden_states
@@ -134,7 +170,9 @@ class LlamaForCausalLM(nn.Module):
         super().__init__()
         self.config = config
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.layers = nn.ModuleList([LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)])
+        self.layers = nn.ModuleList(
+            [LlamaDecoderLayer(config) for _ in range(config.num_hidden_layers)]
+        )
         self.norm_weight = nn.Parameter(torch.ones(config.hidden_size))
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)
         self._init_rope()
@@ -145,22 +183,24 @@ class LlamaForCausalLM(nn.Module):
         inv_freq = 1.0 / (theta ** (torch.arange(0, dim, 2).float() / dim))
         self.register_buffer("inv_freq", inv_freq, persistent=False)
 
-    def get_cos_sin(self, seq_len: int, device: torch.device, dtype: torch.dtype) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_cos_sin(
+        self, seq_len: int, device: torch.device, dtype: torch.dtype
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         t = torch.arange(seq_len, device=device, dtype=self.inv_freq.dtype)
         freqs = torch.outer(t, self.inv_freq)
         emb = torch.cat((freqs, freqs), dim=-1)
-        cos = emb.cos().to(dtype).unsqueeze(0).unsqueeze(0) # [1, 1, seq_len, dim]
+        cos = emb.cos().to(dtype).unsqueeze(0).unsqueeze(0)  # [1, 1, seq_len, dim]
         sin = emb.sin().to(dtype).unsqueeze(0).unsqueeze(0)
         return cos, sin
 
     def forward(
         self,
         input_ids: torch.Tensor,
-        k_caches: Optional[list] = None,
-        v_caches: Optional[list] = None,
-        block_tables: Optional[torch.Tensor] = None,
-        context_lens: Optional[torch.Tensor] = None,
-        is_prefill: bool = True
+        k_caches: list | None = None,
+        v_caches: list | None = None,
+        block_tables: torch.Tensor | None = None,
+        context_lens: torch.Tensor | None = None,
+        is_prefill: bool = True,
     ) -> torch.Tensor:
         hidden_states = self.embed_tokens(input_ids)
         seq_len = hidden_states.shape[1]
@@ -170,10 +210,14 @@ class LlamaForCausalLM(nn.Module):
             k_c = k_caches[i] if k_caches is not None else None
             v_c = v_caches[i] if v_caches is not None else None
             hidden_states = layer(
-                hidden_states, cos, sin,
-                k_cache=k_c, v_cache=v_c,
-                block_tables=block_tables, context_lens=context_lens,
-                is_prefill=is_prefill
+                hidden_states,
+                cos,
+                sin,
+                k_cache=k_c,
+                v_cache=v_c,
+                block_tables=block_tables,
+                context_lens=context_lens,
+                is_prefill=is_prefill,
             )
 
         normed, _ = rmsnorm(hidden_states, self.norm_weight, self.config.rms_norm_eps)

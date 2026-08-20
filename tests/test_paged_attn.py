@@ -8,7 +8,9 @@ from lyapunov_engine.ops import paged_attention
 @pytest.mark.parametrize("head_dim", [64, 128])
 @pytest.mark.parametrize("block_size", [16])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float16])
-def test_paged_attention_numerical_parity(batch_size, num_heads, num_kv_heads, head_dim, block_size, dtype):
+def test_paged_attention_numerical_parity(
+    batch_size, num_heads, num_kv_heads, head_dim, block_size, dtype
+):
     if not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -16,16 +18,24 @@ def test_paged_attention_numerical_parity(batch_size, num_heads, num_kv_heads, h
     torch.manual_seed(42)
 
     num_blocks = 128
-    k_cache = torch.randn((num_blocks, num_kv_heads, block_size, head_dim), dtype=dtype, device=device)
-    v_cache = torch.randn((num_blocks, num_kv_heads, block_size, head_dim), dtype=dtype, device=device)
+    k_cache = torch.randn(
+        (num_blocks, num_kv_heads, block_size, head_dim), dtype=dtype, device=device
+    )
+    v_cache = torch.randn(
+        (num_blocks, num_kv_heads, block_size, head_dim), dtype=dtype, device=device
+    )
 
     q = torch.randn((batch_size, num_heads, head_dim), dtype=dtype, device=device)
 
-    context_lens = torch.tensor([15, 32, 48, 60][:batch_size], dtype=torch.int32, device=device)
+    context_lens = torch.tensor(
+        [15, 32, 48, 60][:batch_size], dtype=torch.int32, device=device
+    )
     max_blocks = 4
-    block_tables = torch.randint(0, num_blocks, (batch_size, max_blocks), dtype=torch.int32, device=device)
+    block_tables = torch.randint(
+        0, num_blocks, (batch_size, max_blocks), dtype=torch.int32, device=device
+    )
 
-    scale = 1.0 / (head_dim ** 0.5)
+    scale = 1.0 / (head_dim**0.5)
 
     # Reference computation
     gqa_ratio = num_heads // num_kv_heads
@@ -53,7 +63,9 @@ def test_paged_attention_numerical_parity(batch_size, num_heads, num_kv_heads, h
             ref_out[b, h] = torch.matmul(weights, v_h).to(dtype)
 
     # Custom PagedAttention op
-    out = paged_attention(q, k_cache, v_cache, block_tables, context_lens, sm_scale=scale)
+    out = paged_attention(
+        q, k_cache, v_cache, block_tables, context_lens, sm_scale=scale
+    )
 
     atol = 2e-3 if dtype == torch.float16 else 1e-4
     rtol = 2e-3 if dtype == torch.float16 else 1e-4

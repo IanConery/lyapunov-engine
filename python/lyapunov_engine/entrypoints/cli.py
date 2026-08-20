@@ -1,11 +1,11 @@
 import argparse
-import sys
+
 import torch
 from transformers import AutoTokenizer
 
-from lyapunov_engine.models.weight_loader import from_pretrained_llama
-from lyapunov_engine.engine.llm_engine import LLMEngine, EngineConfig
+from lyapunov_engine.engine.llm_engine import EngineConfig, LLMEngine
 from lyapunov_engine.engine.sampling import SamplingParams
+from lyapunov_engine.models.weight_loader import from_pretrained_llama
 from lyapunov_engine.server.api_server import create_app
 
 
@@ -26,15 +26,13 @@ def run_generate(args):
         max_num_seqs=args.max_num_seqs,
         max_num_batched_tokens=args.max_batched_tokens,
         dtype=dtype,
-        device=device
+        device=device,
     )
 
     engine = LLMEngine(model, config)
     prompt_tokens = tokenizer.encode(args.prompt)
     sampling = SamplingParams(
-        temperature=args.temperature,
-        top_p=args.top_p,
-        max_tokens=args.max_tokens
+        temperature=args.temperature, top_p=args.top_p, max_tokens=args.max_tokens
     )
 
     engine.add_request("req-0", prompt_tokens, sampling)
@@ -64,7 +62,7 @@ def run_serve(args):
         max_num_seqs=args.max_num_seqs,
         max_num_batched_tokens=args.max_batched_tokens,
         dtype=dtype,
-        device=device
+        device=device,
     )
 
     engine = LLMEngine(model, config)
@@ -81,8 +79,15 @@ def main():
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
     # Generate subcommand
-    gen_parser = subparsers.add_parser("generate", help="Run text generation from prompt")
-    gen_parser.add_argument("--model", type=str, required=True, help="HuggingFace model repo or local directory")
+    gen_parser = subparsers.add_parser(
+        "generate", help="Run text generation from prompt"
+    )
+    gen_parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="HuggingFace model repo or local directory",
+    )
     gen_parser.add_argument("--prompt", type=str, required=True, help="Prompt text")
     gen_parser.add_argument("--max-tokens", type=int, default=64)
     gen_parser.add_argument("--temperature", type=float, default=0.7)
@@ -93,8 +98,15 @@ def main():
     gen_parser.add_argument("--max-batched-tokens", type=int, default=2048)
 
     # Serve subcommand
-    serve_parser = subparsers.add_parser("serve", help="Start OpenAI-compatible API server")
-    serve_parser.add_argument("--model", type=str, required=True, help="HuggingFace model repo or local directory")
+    serve_parser = subparsers.add_parser(
+        "serve", help="Start OpenAI-compatible API server"
+    )
+    serve_parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        help="HuggingFace model repo or local directory",
+    )
     serve_parser.add_argument("--host", type=str, default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8000)
     serve_parser.add_argument("--block-size", type=int, default=16)
